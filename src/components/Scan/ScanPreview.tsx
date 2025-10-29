@@ -50,52 +50,73 @@ export function ScanPreview({ scanId, onConfirm }: ScanPreviewProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingField, setEditingField] = useState<string | null>(null);
+  const [processingMessage, setProcessingMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchScan();
-  }, [scanId, user]);
+    if (!user || !scanId) return;
 
-  const fetchScan = async () => {
-    if (!user) return;
+    let attempts = 0;
+    const maxAttempts = 30;
+    const pollInterval = 2000;
 
-    try {
-      let query = supabase
-        .from('scans')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('status', 'completed')
-        .order('created_at', { ascending: false });
+    const pollScan = async () => {
+      attempts++;
 
-      if (scanId) {
-        query = query.eq('id', scanId);
-      }
+      try {
+        const { data, error: fetchError } = await supabase
+          .from('scans')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('id', scanId)
+          .maybeSingle();
 
-      const { data, error } = await query.limit(1).maybeSingle();
-
-      if (error) {
-        setError(error.message);
-        setLoading(false);
-        return;
-      }
-
-      if (!data) {
-        if (scanId) {
-          setError('Scan not found or still processing. Please wait a moment and refresh the page.');
-        } else {
-          setError('No completed scans found. Upload some images to get started!');
+        if (fetchError) {
+          console.error('Error fetching scan:', fetchError);
+          setError(fetchError.message);
+          setLoading(false);
+          return;
         }
-        setLoading(false);
-        return;
-      }
 
-      setScan(data);
-      setEditedData(data.merged || {});
-      setLoading(false);
-    } catch (err) {
-      setError('Failed to fetch scan data');
-      setLoading(false);
-    }
-  };
+        if (!data) {
+          setError('Scan not found. It may have been deleted.');
+          setLoading(false);
+          return;
+        }
+
+        if (data.status === 'completed') {
+          setScan(data);
+          setEditedData(data.merged || {});
+          setLoading(false);
+          setProcessingMessage(null);
+          return;
+        }
+
+        if (data.status === 'failed') {
+          setError('Scan processing failed. Please try uploading again.');
+          setLoading(false);
+          setProcessingMessage(null);
+          return;
+        }
+
+        if (attempts >= maxAttempts) {
+          setError('Scan is taking longer than expected. Please refresh the page or try again.');
+          setLoading(false);
+          setProcessingMessage(null);
+          return;
+        }
+
+        setProcessingMessage(`Processing your scan... (${attempts}/${maxAttempts})`);
+        setTimeout(pollScan, pollInterval);
+      } catch (err) {
+        console.error('Error polling scan:', err);
+        setError('Failed to fetch scan data');
+        setLoading(false);
+        setProcessingMessage(null);
+      }
+    };
+
+    pollScan();
+  }, [scanId, user]);
 
   const handleFieldEdit = (field: string, value: any) => {
     setEditedData({ ...editedData, [field]: value });
@@ -126,8 +147,16 @@ export function ScanPreview({ scanId, onConfirm }: ScanPreviewProps) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-8 text-center">
+        <div className="flex flex-col items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+          <h3 className="text-lg font-medium text-blue-900 mb-2">
+            {processingMessage || 'Loading scan...'}
+          </h3>
+          <p className="text-blue-700 text-sm">
+            {processingMessage ? 'AI is analyzing your images. This usually takes 10-30 seconds.' : 'Please wait...'}
+          </p>
+        </div>
       </div>
     );
   }
@@ -137,7 +166,13 @@ export function ScanPreview({ scanId, onConfirm }: ScanPreviewProps) {
       <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
         <AlertCircle className="w-12 h-12 text-red-600 mx-auto mb-4" />
         <h3 className="text-lg font-medium text-red-900 mb-2">Unable to Load Scan</h3>
-        <p className="text-red-700">{error || 'No scan data available'}</p>
+        <p className="text-red-700 mb-4">{error || 'No scan data available'}</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition"
+        >
+          Refresh Page
+        </button>
       </div>
     );
   }
