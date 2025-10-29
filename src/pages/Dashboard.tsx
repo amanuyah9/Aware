@@ -4,6 +4,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { CourseCard } from '../components/Dashboard/CourseCard';
 import { CreateCourseModal } from '../components/Dashboard/CreateCourseModal';
+import { EditCourseModal } from '../components/Dashboard/EditCourseModal';
+import { DeleteConfirmationModal } from '../components/Dashboard/DeleteConfirmationModal';
 
 interface Course {
   id: string;
@@ -26,6 +28,9 @@ export function Dashboard() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -104,6 +109,79 @@ export function Dashboard() {
     }
   };
 
+  const handleEditCourse = (course: Course) => {
+    setSelectedCourse(course);
+    setShowEditModal(true);
+  };
+
+  const handleUpdateCourse = async (
+    courseId: string,
+    data: { title: string; teacher: string | null; term: string | null }
+  ) => {
+    if (!user) {
+      alert('You must be logged in to update a course');
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('courses')
+        .update(data)
+        .eq('id', courseId)
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error('Error updating course:', error);
+        alert(`Failed to update course: ${error.message}`);
+        return;
+      }
+
+      setCourses(
+        courses.map((course) =>
+          course.id === courseId ? { ...course, ...data } : course
+        )
+      );
+      setShowEditModal(false);
+      setSelectedCourse(null);
+    } catch (err) {
+      console.error('Unexpected error:', err);
+      alert('An unexpected error occurred. Please try again.');
+    }
+  };
+
+  const handleDeleteCourse = (courseId: string) => {
+    const course = courses.find((c) => c.id === courseId);
+    if (course) {
+      setSelectedCourse(course);
+      setShowDeleteModal(true);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!user || !selectedCourse) return;
+
+    try {
+      const { error } = await supabase
+        .from('courses')
+        .delete()
+        .eq('id', selectedCourse.id)
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error('Error deleting course:', error);
+        alert(`Failed to delete course: ${error.message}`);
+        return;
+      }
+
+      setCourses(courses.filter((course) => course.id !== selectedCourse.id));
+      setShowDeleteModal(false);
+      setSelectedCourse(null);
+    } catch (err) {
+      console.error('Unexpected error:', err);
+      alert('An unexpected error occurred. Please try again.');
+    }
+  };
+
   const canCreateCourse = subscription ? courses.length < subscription.courses_limit : false;
 
   if (loading) {
@@ -174,7 +252,12 @@ export function Dashboard() {
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
               {courses.map((course) => (
-                <CourseCard key={course.id} course={course} />
+                <CourseCard
+                  key={course.id}
+                  course={course}
+                  onEdit={handleEditCourse}
+                  onDelete={handleDeleteCourse}
+                />
               ))}
             </div>
 
@@ -211,6 +294,28 @@ export function Dashboard() {
         <CreateCourseModal
           onClose={() => setShowCreateModal(false)}
           onCreate={handleCreateCourse}
+        />
+      )}
+
+      {showEditModal && selectedCourse && (
+        <EditCourseModal
+          course={selectedCourse}
+          onClose={() => {
+            setShowEditModal(false);
+            setSelectedCourse(null);
+          }}
+          onUpdate={handleUpdateCourse}
+        />
+      )}
+
+      {showDeleteModal && selectedCourse && (
+        <DeleteConfirmationModal
+          courseTitle={selectedCourse.title}
+          onClose={() => {
+            setShowDeleteModal(false);
+            setSelectedCourse(null);
+          }}
+          onConfirm={handleConfirmDelete}
         />
       )}
     </div>
