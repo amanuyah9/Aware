@@ -132,81 +132,122 @@ Open [http://localhost:5173](http://localhost:5173)
 
 3. Configure environment variables in your hosting platform
 
-## Part 4: Adding AI Scanning (Future)
+## Part 4: AI Scanning Setup
 
-When you're ready to implement AI scanning:
+The AI scanning feature is now implemented! Follow these steps to enable it.
 
-### Step 1: Get API Keys
+### Step 1: Create Storage Bucket
 
-1. **OpenAI API Key**:
-   - Sign up at [https://platform.openai.com](https://platform.openai.com)
-   - Go to API Keys
-   - Create new key
-   - Save as `OPENAI_API_KEY`
+1. Go to your Supabase dashboard
+2. Click **Storage** in the left sidebar
+3. Click **Create a new bucket**
+4. Name it: `scan-images`
+5. Make it **Public** (so processed images can be accessed)
+6. Click **Create bucket**
 
-2. **Stripe Keys** (for payments):
-   - Sign up at [https://stripe.com](https://stripe.com)
-   - Get test keys from dashboard
-   - Save as `STRIPE_SECRET_KEY` and `STRIPE_PUBLIC_KEY`
+### Step 2: Set up Storage Policies
 
-### Step 2: Create Supabase Edge Function
+Run this SQL in the SQL Editor:
 
-1. Install Supabase CLI:
-   ```bash
-   npm install -g supabase
-   ```
+```sql
+-- Allow authenticated users to upload images
+CREATE POLICY "Users can upload scan images"
+ON storage.objects FOR INSERT
+TO authenticated
+WITH CHECK (bucket_id = 'scan-images' AND auth.uid()::text = (storage.foldername(name))[1]);
 
-2. Create function:
-   ```bash
-   supabase functions new process-scan
-   ```
+-- Allow authenticated users to read their own images
+CREATE POLICY "Users can read own scan images"
+ON storage.objects FOR SELECT
+TO authenticated
+USING (bucket_id = 'scan-images' AND auth.uid()::text = (storage.foldername(name))[1]);
 
-3. Add code to `supabase/functions/process-scan/index.ts`:
-   ```typescript
-   import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+-- Allow public read access (needed for OpenAI to access images)
+CREATE POLICY "Public read access for scan images"
+ON storage.objects FOR SELECT
+TO public
+USING (bucket_id = 'scan-images');
+```
 
-   const corsHeaders = {
-     'Access-Control-Allow-Origin': '*',
-     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-   }
+### Step 3: Get OpenAI API Key (Optional)
 
-   serve(async (req) => {
-     if (req.method === 'OPTIONS') {
-       return new Response('ok', { headers: corsHeaders })
-     }
+The app works in mock mode without an API key, but for real AI scanning:
 
-     try {
-       const { imageUrls } = await req.json()
+1. Sign up at [https://platform.openai.com](https://platform.openai.com)
+2. Go to **API Keys**
+3. Click **Create new secret key**
+4. Copy the key (starts with `sk-...`)
+5. **IMPORTANT**: You'll only see this once, save it securely!
 
-       // TODO: Implement OCR + LLM parsing
-       // Use Deno.env.get('OPENAI_API_KEY')
+### Step 4: Configure Edge Function Secret
 
-       return new Response(
-         JSON.stringify({ success: true }),
-         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-       )
-     } catch (error) {
-       return new Response(
-         JSON.stringify({ error: error.message }),
-         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-       )
-     }
-   })
-   ```
+The `processScan` Edge Function is already deployed. To enable real AI:
 
-4. Deploy function:
-   ```bash
-   supabase functions deploy process-scan
-   ```
+1. In your Supabase dashboard, go to **Edge Functions**
+2. You should see `process-scan` listed
+3. Click on it, then click **Settings**
+4. Add a new secret:
+   - Name: `OPENAI_API_KEY`
+   - Value: Your OpenAI API key (from Step 3)
+5. Click **Save**
 
-5. Set secrets:
-   ```bash
-   supabase secrets set OPENAI_API_KEY=your_key_here
-   ```
+### Step 5: Test AI Scanning
 
-### Step 3: Connect UI to Edge Function
+1. Navigate to the Scan page in your app (Camera icon in nav)
+2. Upload 1-3 photos of:
+   - Your syllabus (showing categories and weights)
+   - Your gradebook (showing assignment names and scores)
+3. Click **Upload and Process**
+4. Wait for processing (should take 10-30 seconds)
+5. Review the extracted data in the preview
+6. Edit any incorrect fields
+7. Click **Confirm** to create your course!
 
-Update the scan UI to call your Edge Function instead of mock data.
+### How It Works
+
+1. **Upload**: Images are uploaded to Supabase Storage (`scan-images` bucket)
+2. **OCR**: Edge Function sends images to OpenAI GPT-4 Vision for text extraction
+3. **Parsing**: GPT-4 converts extracted text into structured JSON (course info, categories, assignments)
+4. **Merging**: Multiple image results are merged with confidence scoring
+5. **Preview**: You review and edit the extracted data
+6. **Create**: Course and assignments are created in your database
+
+### Mock Mode (No API Key)
+
+If you don't configure an OpenAI API key, the app runs in mock mode:
+- Generates sample course data
+- Shows you the full user experience
+- Perfect for testing and development
+- No API costs
+
+### Troubleshooting
+
+**Problem**: Images not uploading
+**Solution**: Verify storage bucket exists and policies are set
+
+**Problem**: Processing stuck
+**Solution**: Check Edge Function logs in Supabase dashboard
+
+**Problem**: Low confidence scores
+**Solution**:
+- Use clearer, well-lit photos
+- Ensure text is readable
+- Try uploading fewer images (1-2 is often better than 3+)
+
+**Problem**: Wrong data extracted
+**Solution**:
+- Edit fields in preview before confirming
+- Try different photos with better visibility
+- Manually adjust after creation
+
+### API Costs
+
+OpenAI GPT-4 Vision pricing (as of 2025):
+- ~$0.01 per image for OCR
+- ~$0.02 per image for parsing
+- Total: ~$0.03-$0.09 per scan (1-3 images)
+
+For 100 scans/month: ~$3-9/month in API costs
 
 ## Troubleshooting
 

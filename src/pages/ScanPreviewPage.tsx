@@ -79,6 +79,7 @@ export function ScanPreviewPage() {
           earned_points: assignment.score,
           total_points: assignment.total,
           extra_credit: false,
+          is_hypothetical: false,
           status: 'graded',
           source_scan_id: scanId,
         }));

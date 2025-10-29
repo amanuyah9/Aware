@@ -20,16 +20,18 @@ A complete, production-ready web application for students to track grades, creat
 - **History**: View all activity, scans, and changes
 - **Settings**: Manage profile and preferences
 
-### 🤖 AI-Powered Features (Mock Mode Available)
+### 🤖 AI-Powered Features (IMPLEMENTED!)
 
-- **Multi-Photo Scanning**: Upload syllabus + gradebook images for automatic course creation
-- **Scan Preview & Confirmation**: Review extracted data with confidence scores before creating courses
-- **Editable Fields**: Manually correct any low-confidence extractions (< 80%)
-- **OCR Processing**: Extract grading rules and assignments using OpenAI GPT-4 Vision
-- **Automatic Course Creation**: Generate courses with categories and assignments from scan data
-- **AI Insights**: Get personalized predictions and study suggestions
-- **Conflict Detection**: Smart merging with confidence scores
-- **Mock Mode**: Test the full workflow with sample data without API keys
+- **Multi-Photo Scanning**: Upload 1-3 images of syllabus + gradebook
+- **Smart OCR**: Uses OpenAI GPT-4 Vision for accurate text extraction
+- **Intelligent Parsing**: Converts raw text into structured course data (JSON)
+- **Multi-Image Merging**: Combines multiple photos with confidence scoring
+- **Live Preview**: Review all extracted data before creating
+- **Editable Fields**: Fix any mistakes in the preview
+- **Automatic Course Creation**: One-click import with all assignments
+- **Mock Mode**: Works without API key for testing
+- **Progress Tracking**: Real-time upload and processing status
+- **Error Handling**: Clear feedback if something goes wrong
 
 ### 💳 Premium Features (Stripe Integration)
 
@@ -56,7 +58,8 @@ npm install
 1. Go to [Supabase Dashboard](https://supabase.com/dashboard)
 2. Open SQL Editor
 3. Copy and run `DATABASE_SCHEMA.sql`
-4. Create storage bucket named `scans` (make it public)
+4. Create storage bucket named `scan-images` (make it public)
+5. Run storage policies from SETUP_GUIDE.md
 
 ### 3. Configure Environment
 
