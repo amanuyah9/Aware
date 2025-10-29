@@ -250,22 +250,91 @@ Be conservative with confidence scores.
 
 ## Mock Mode
 
-When `OPENAI_API_KEY` is not configured:
+### Configuration
+
+The Edge Function supports two modes controlled by environment variables:
+
+**MOCK_MODE Environment Variable:**
+- `MOCK_MODE=true` or undefined → Mock mode (default)
+- `MOCK_MODE=false` → Live AI mode
+
+**Behavior:**
+
+1. **Mock Mode (Default):**
+   - Used when `MOCK_MODE=true` or `MOCK_MODE` is not set
+   - Generates sample data without calling OpenAI API
+   - Logs: `🧪 Running in MOCK MODE (no external API calls)`
+   - Perfect for testing without API costs
+
+2. **Live AI Mode:**
+   - Used when `MOCK_MODE=false` and `OPENAI_API_KEY` is set
+   - Calls OpenAI GPT-4 Vision API for real processing
+   - Logs: `🚀 Running in LIVE AI MODE (GPT-4 Vision enabled)`
+   - Requires valid OpenAI API key
+
+3. **Fallback:**
+   - If `MOCK_MODE=false` but no API key is found
+   - Falls back to mock mode automatically
+   - Logs: `⚠️ LIVE AI MODE enabled but no OpenAI API key found - falling back to mock data`
+
+### Mock Data Structure
 
 ```typescript
-// Generate sample data instead of calling API
 parsedParts = imageUrls.map((_, index) => ({
   courseTitle: 'Mock Course from Scan',
   teacher: 'Dr. Smith',
   term: 'Fall 2025',
   gradingModel: 'weighted',
-  categories: [...],
-  assignments: [...],
+  categories: [
+    { id: 'homework', name: 'Homework', weight: 30, dropLowest: 1 },
+    { id: 'exams', name: 'Exams', weight: 50, dropLowest: 0 },
+    { id: 'projects', name: 'Projects', weight: 20, dropLowest: 0 },
+  ],
+  assignments: [
+    {
+      title: `Assignment ${index + 1}`,
+      category: 'homework',
+      earnedPoints: 85,
+      totalPoints: 100,
+      date: '2025-01-15',
+    },
+  ],
   confidence: 0.85,
 }));
 ```
 
-This allows full testing without API costs.
+### Usage Examples
+
+**Development (Mock Mode):**
+```bash
+# .env or Supabase Edge Function Secrets
+MOCK_MODE=true  # or omit entirely for default
+```
+
+**Production (Live AI):**
+```bash
+# .env or Supabase Edge Function Secrets
+MOCK_MODE=false
+OPENAI_API_KEY=sk-...
+```
+
+**Testing Both Modes:**
+```bash
+# Test mock mode first
+MOCK_MODE=true → No API calls, no costs
+
+# Then test with real API
+MOCK_MODE=false
+OPENAI_API_KEY=sk-... → Real GPT-4 Vision processing
+```
+
+### Benefits
+
+- **Cost Control**: Test without API charges
+- **Faster Development**: Instant mock responses
+- **Reliable Testing**: Consistent mock data
+- **Easy Switching**: One environment variable
+- **Production Ready**: Same code for both modes
 
 ## Error Handling
 

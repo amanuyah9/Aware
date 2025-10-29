@@ -44,6 +44,17 @@ Deno.serve(async (req: Request) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const openaiKey = Deno.env.get('OPENAI_API_KEY');
 
+    const mockModeEnv = Deno.env.get('MOCK_MODE');
+    const mockMode = mockModeEnv === undefined ? true : mockModeEnv.toLowerCase() === 'true';
+
+    if (mockMode) {
+      console.log('🧪 Running in MOCK MODE (no external API calls)');
+    } else if (openaiKey) {
+      console.log('🚀 Running in LIVE AI MODE (GPT-4 Vision enabled)');
+    } else {
+      console.log('⚠️  LIVE AI MODE enabled but no OpenAI API key found - falling back to mock data');
+    }
+
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const authHeader = req.headers.get('Authorization');
@@ -82,8 +93,8 @@ Deno.serve(async (req: Request) => {
 
     let parsedParts: ParsedData[] = [];
 
-    if (!openaiKey) {
-      console.log('No OpenAI key found, using mock mode');
+    if (mockMode || !openaiKey) {
+      console.log(`📋 Generating mock data for ${imageUrls.length} image(s)`);
       parsedParts = imageUrls.map((_, index) => ({
         courseTitle: 'Mock Course from Scan',
         teacher: 'Dr. Smith',
@@ -106,15 +117,18 @@ Deno.serve(async (req: Request) => {
         confidence: 0.85,
       }));
     } else {
+      console.log(`🤖 Processing ${imageUrls.length} image(s) with GPT-4 Vision`);
       for (let i = 0; i < imageUrls.length; i++) {
         const imageUrl = imageUrls[i];
-        
+
         try {
+          console.log(`  → Processing image ${i + 1}/${imageUrls.length}`);
           const ocrText = await performOCR(imageUrl, openaiKey);
           const parsed = await parseStructuredData(ocrText, openaiKey);
           parsedParts.push(parsed);
+          console.log(`  ✓ Image ${i + 1} processed successfully`);
         } catch (error) {
-          console.error(`Error processing image ${i}:`, error);
+          console.error(`  ✗ Error processing image ${i + 1}:`, error);
           parsedParts.push({
             confidence: 0,
           });
