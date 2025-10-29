@@ -40,7 +40,7 @@ export function ScanPage() {
 
   const handleUploadAndProcess = async () => {
     if (!user) {
-      alert('You must be logged in to upload files');
+      setError('You must be logged in to upload files. Please sign in and try again.');
       return;
     }
 
@@ -114,12 +114,18 @@ export function ScanPage() {
       setProcessing(true);
       setProgress('Processing images with AI...');
 
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+      if (sessionError || !session) {
+        throw new Error('You must be logged in to process scans. Please refresh and try again.');
+      }
+
       const functionUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/process-scan`;
 
       const response = await fetch(functionUrl, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -129,8 +135,19 @@ export function ScanPage() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to process scan');
+        if (response.status === 401) {
+          throw new Error('Authentication expired. Please refresh the page and try again.');
+        }
+
+        let errorMessage = 'Failed to process scan';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch {
+          errorMessage = `Server error: ${response.statusText}`;
+        }
+
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();
