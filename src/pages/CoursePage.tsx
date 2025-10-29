@@ -55,29 +55,64 @@ export function CoursePage({ courseId }: { courseId: string }) {
   };
 
   const handleAddAssignment = async (assignmentData: any) => {
-    if (!user || !course) return;
+    if (!user || !course) {
+      alert('You must be logged in to add assignments');
+      return;
+    }
 
-    const { data, error } = await supabase
-      .from('assignments')
-      .insert([
-        {
-          ...assignmentData,
-          course_id: courseId,
-          user_id: user.id,
-        },
-      ])
-      .select()
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('assignments')
+        .insert([
+          {
+            ...assignmentData,
+            course_id: courseId,
+            user_id: user.id,
+          },
+        ])
+        .select()
+        .single();
 
-    if (!error && data) {
-      setAssignments([data, ...assignments]);
-      setShowAddModal(false);
+      if (error) {
+        console.error('Error adding assignment:', error);
+        alert(`Failed to add assignment: ${error.message}`);
+        return;
+      }
+
+      if (data) {
+        setAssignments([data, ...assignments]);
+        setShowAddModal(false);
+      }
+    } catch (err) {
+      console.error('Unexpected error adding assignment:', err);
+      alert('An unexpected error occurred. Please try again.');
     }
   };
 
   const handleDeleteAssignment = async (assignmentId: string) => {
-    await supabase.from('assignments').delete().eq('id', assignmentId);
-    setAssignments(assignments.filter((a) => a.id !== assignmentId));
+    if (!user) {
+      alert('You must be logged in to delete assignments');
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('assignments')
+        .delete()
+        .eq('id', assignmentId)
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error('Error deleting assignment:', error);
+        alert(`Failed to delete assignment: ${error.message}`);
+        return;
+      }
+
+      setAssignments(assignments.filter((a) => a.id !== assignmentId));
+    } catch (err) {
+      console.error('Unexpected error deleting assignment:', err);
+      alert('An unexpected error occurred. Please try again.');
+    }
   };
 
   if (loading || !course) {
