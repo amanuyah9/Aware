@@ -97,7 +97,7 @@ export function ScanPreviewPage() {
 
       const { error: linkError } = await supabase
         .from('scans')
-        .update({ linked_course_id: course.id })
+        .update({ merged_course_id: course.id })
         .eq('id', scanId);
 
       if (linkError) {

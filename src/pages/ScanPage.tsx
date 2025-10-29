@@ -96,6 +96,12 @@ export function ScanPage() {
         throw new Error(`Failed to create scan: ${scanError.message}`);
       }
 
+      if (!scan || !scan.id) {
+        throw new Error('Failed to create scan: No scan ID returned');
+      }
+
+      console.log('Created scan with ID:', scan.id);
+
       const uploadedUrls: string[] = [];
       let imageCount = 0;
 
@@ -168,6 +174,10 @@ export function ScanPage() {
         setFiles(updatedFiles);
       }
 
+      if (uploadedUrls.length === 0) {
+        throw new Error('No images were uploaded successfully. Please try again.');
+      }
+
       await supabase
         .from('scans')
         .update({
@@ -175,6 +185,8 @@ export function ScanPage() {
           status: 'uploaded',
         })
         .eq('id', scan.id);
+
+      console.log(`Updated scan ${scan.id} with ${uploadedUrls.length} images`);
 
       setUploading(false);
       setProcessing(true);
@@ -187,6 +199,12 @@ export function ScanPage() {
       }
 
       const functionUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/process-scan`;
+
+      console.log('Calling Edge Function with:', {
+        scanId: scan.id,
+        imageUrlsCount: uploadedUrls.length,
+        firstUrl: uploadedUrls[0],
+      });
 
       const response = await fetch(functionUrl, {
         method: 'POST',
