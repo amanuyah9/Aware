@@ -22,16 +22,18 @@ A complete, production-ready web application for students to track grades, creat
 
 ### 🤖 AI-Powered Features (IMPLEMENTED!)
 
-- **Multi-Photo Scanning**: Upload 1-3 images of syllabus + gradebook
+- **PDF & Photo Support**: Upload images or multi-page PDF documents
+- **Client-Side PDF Processing**: Automatic conversion using PDF.js (no server needed)
 - **Smart OCR**: Uses OpenAI GPT-4 Vision for accurate text extraction
 - **Intelligent Parsing**: Converts raw text into structured course data (JSON)
-- **Multi-Image Merging**: Combines multiple photos with confidence scoring
+- **Multi-Page Merging**: Combines multiple images/PDF pages with confidence scoring
 - **Live Preview**: Review all extracted data before creating
 - **Editable Fields**: Fix any mistakes in the preview
 - **Automatic Course Creation**: One-click import with all assignments
 - **Mock Mode**: Works without API key for testing
 - **Progress Tracking**: Real-time upload and processing status
 - **Error Handling**: Clear feedback if something goes wrong
+- **Optimized Bundle**: PDF.js lazy-loaded, main bundle under 400KB
 
 ### 💳 Premium Features (Stripe Integration)
 

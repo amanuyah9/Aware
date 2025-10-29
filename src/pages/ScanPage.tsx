@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, Camera, Upload, X, Check } from 'lucide-react';
+import { ArrowLeft, Camera, Upload, X, Check, FileText } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 
@@ -8,6 +8,8 @@ interface UploadedFile {
   preview: string;
   uploaded: boolean;
   url?: string;
+  isPDF?: boolean;
+  pageCount?: number;
 }
 
 export function ScanPage() {
@@ -18,17 +20,41 @@ export function ScanPage() {
   const [progress, setProgress] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files || []);
+    setError(null);
 
-    const newFiles: UploadedFile[] = selectedFiles.map((file) => ({
-      file,
-      preview: URL.createObjectURL(file),
-      uploaded: false,
-    }));
+    const newFiles: UploadedFile[] = [];
+
+    for (const file of selectedFiles) {
+      const isPDF = file.type === 'application/pdf';
+
+      if (isPDF) {
+        try {
+          const { getPDFPageCount } = await import('../lib/pdfUtils');
+          const pageCount = await getPDFPageCount(file);
+          newFiles.push({
+            file,
+            preview: '',
+            uploaded: false,
+            isPDF: true,
+            pageCount,
+          });
+        } catch (err) {
+          console.error('Error reading PDF:', err);
+          setError(`Failed to read PDF: ${file.name}`);
+        }
+      } else {
+        newFiles.push({
+          file,
+          preview: URL.createObjectURL(file),
+          uploaded: false,
+          isPDF: false,
+        });
+      }
+    }
 
     setFiles([...files, ...newFiles]);
-    setError(null);
   };
 
   const removeFile = (index: number) => {
@@ -71,34 +97,74 @@ export function ScanPage() {
       }
 
       const uploadedUrls: string[] = [];
+      let imageCount = 0;
 
       for (let i = 0; i < files.length; i++) {
-        setProgress(`Uploading image ${i + 1} of ${files.length}...`);
+        const uploadFile = files[i];
 
-        const file = files[i].file;
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${user.id}/${scan.id}/${Date.now()}-${i}.${fileExt}`;
+        if (uploadFile.isPDF) {
+          setProgress(`Converting PDF ${i + 1} (${uploadFile.pageCount} pages)...`);
 
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('scan-images')
-          .upload(fileName, file, {
-            cacheControl: '3600',
-            upsert: false,
-          });
+          try {
+            const { convertPDFToImages } = await import('../lib/pdfUtils');
+            const pdfImages = await convertPDFToImages(uploadFile.file);
 
-        if (uploadError) {
-          throw new Error(`Failed to upload image ${i + 1}: ${uploadError.message}`);
+            for (let pageIdx = 0; pageIdx < pdfImages.length; pageIdx++) {
+              imageCount++;
+              setProgress(`Uploading PDF page ${pageIdx + 1} of ${pdfImages.length}...`);
+
+              const pageImage = pdfImages[pageIdx];
+              const fileName = `${user.id}/${scan.id}/${Date.now()}-pdf-${i}-page-${pageImage.pageNumber}.png`;
+
+              const { data: uploadData, error: uploadError } = await supabase.storage
+                .from('scan-images')
+                .upload(fileName, pageImage.blob, {
+                  cacheControl: '3600',
+                  upsert: false,
+                  contentType: 'image/png',
+                });
+
+              if (uploadError) {
+                throw new Error(`Failed to upload PDF page ${pageImage.pageNumber}: ${uploadError.message}`);
+              }
+
+              const { data: urlData } = supabase.storage
+                .from('scan-images')
+                .getPublicUrl(uploadData.path);
+
+              uploadedUrls.push(urlData.publicUrl);
+            }
+          } catch (err) {
+            throw new Error(`Failed to process PDF: ${err instanceof Error ? err.message : 'Unknown error'}`);
+          }
+        } else {
+          imageCount++;
+          setProgress(`Uploading image ${imageCount}...`);
+
+          const file = uploadFile.file;
+          const fileExt = file.name.split('.').pop();
+          const fileName = `${user.id}/${scan.id}/${Date.now()}-${i}.${fileExt}`;
+
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from('scan-images')
+            .upload(fileName, file, {
+              cacheControl: '3600',
+              upsert: false,
+            });
+
+          if (uploadError) {
+            throw new Error(`Failed to upload image ${i + 1}: ${uploadError.message}`);
+          }
+
+          const { data: urlData } = supabase.storage
+            .from('scan-images')
+            .getPublicUrl(uploadData.path);
+
+          uploadedUrls.push(urlData.publicUrl);
         }
-
-        const { data: urlData } = supabase.storage
-          .from('scan-images')
-          .getPublicUrl(uploadData.path);
-
-        uploadedUrls.push(urlData.publicUrl);
 
         const updatedFiles = [...files];
         updatedFiles[i].uploaded = true;
-        updatedFiles[i].url = urlData.publicUrl;
         setFiles(updatedFiles);
       }
 
@@ -212,7 +278,7 @@ export function ScanPage() {
                 <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                 <h2 className="text-xl font-semibold text-gray-900 mb-2">Upload Documents</h2>
                 <p className="text-gray-600 mb-6">
-                  Take photos of your syllabus and gradebook, then upload them here
+                  Upload photos or PDFs of your syllabus and gradebook
                 </p>
 
                 <label className="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition cursor-pointer">
@@ -220,7 +286,7 @@ export function ScanPage() {
                   Choose Files
                   <input
                     type="file"
-                    accept="image/*"
+                    accept="image/*,application/pdf,.pdf"
                     multiple
                     onChange={handleFileSelect}
                     disabled={uploading || processing}
@@ -234,11 +300,11 @@ export function ScanPage() {
                 <ol className="space-y-3 text-gray-700">
                   <li className="flex items-start">
                     <span className="font-bold mr-2 text-blue-600">1.</span>
-                    <span>Upload photos of your syllabus showing grading categories and weights</span>
+                    <span>Upload photos or PDFs of your syllabus showing grading categories and weights</span>
                   </li>
                   <li className="flex items-start">
                     <span className="font-bold mr-2 text-blue-600">2.</span>
-                    <span>Upload photos of your gradebook showing assignment scores</span>
+                    <span>Upload photos or PDFs of your gradebook showing assignment scores</span>
                   </li>
                   <li className="flex items-start">
                     <span className="font-bold mr-2 text-blue-600">3.</span>
@@ -260,14 +326,14 @@ export function ScanPage() {
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-xl font-semibold text-gray-900">
-                    Selected Images ({files.length})
+                    Selected Files ({files.length})
                   </h2>
                   <label className="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition cursor-pointer text-sm">
                     <Upload className="w-4 h-4 mr-2" />
                     Add More
                     <input
                       type="file"
-                      accept="image/*"
+                      accept="image/*,application/pdf,.pdf"
                       multiple
                       onChange={handleFileSelect}
                       disabled={uploading || processing}
@@ -282,11 +348,18 @@ export function ScanPage() {
                       key={index}
                       className="relative group border border-gray-200 rounded-lg overflow-hidden"
                     >
-                      <img
-                        src={file.preview}
-                        alt={`Upload ${index + 1}`}
-                        className="w-full h-40 object-cover"
-                      />
+                      {file.isPDF ? (
+                        <div className="w-full h-40 bg-red-50 flex flex-col items-center justify-center">
+                          <FileText className="w-16 h-16 text-red-600 mb-2" />
+                          <p className="text-sm text-red-900 font-medium">{file.pageCount} pages</p>
+                        </div>
+                      ) : (
+                        <img
+                          src={file.preview}
+                          alt={`Upload ${index + 1}`}
+                          className="w-full h-40 object-cover"
+                        />
+                      )}
                       {file.uploaded && (
                         <div className="absolute top-2 right-2 bg-green-500 rounded-full p-1">
                           <Check className="w-4 h-4 text-white" />

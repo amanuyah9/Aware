@@ -2,14 +2,18 @@
 
 ## Overview
 
-The AI Grade Scanning feature allows students to upload photos of their syllabus and gradebook, and automatically create courses with all assignments pre-filled. The system uses OpenAI GPT-4 Vision for OCR and intelligent parsing.
+The AI Grade Scanning feature allows students to upload photos or PDFs of their syllabus and gradebook, and automatically create courses with all assignments pre-filled. The system uses OpenAI GPT-4 Vision for OCR and intelligent parsing.
+
+**Supported Formats**: Images (PNG, JPG, JPEG) and PDF documents with automatic page extraction.
 
 ## Architecture
 
 ### Frontend Flow
 
 1. **ScanPage** (`src/pages/ScanPage.tsx`)
-   - Multi-file upload interface
+   - Multi-file upload interface (images and PDFs)
+   - PDF page count detection
+   - Client-side PDF to image conversion
    - Image preview with remove capability
    - Upload progress tracking
    - Calls Edge Function for processing
@@ -47,7 +51,9 @@ The AI Grade Scanning feature allows students to upload photos of their syllabus
 ## Data Flow
 
 ```
-User uploads images
+User uploads images/PDFs
+    ↓
+PDFs converted to images (client-side using PDF.js)
     ↓
 Images stored in Supabase Storage
     ↓
@@ -79,7 +85,8 @@ Redirect to course page
 // User selects files
 handleFileSelect() {
   - Create File objects
-  - Generate preview URLs
+  - Detect PDFs and get page count
+  - Generate preview URLs for images
   - Add to state
 }
 
@@ -87,7 +94,11 @@ handleFileSelect() {
 handleUploadAndProcess() {
   1. Create scan record (status: 'uploading')
   2. For each file:
-     - Upload to Storage
+     - If PDF:
+       • Convert to images using PDF.js
+       • Upload each page as PNG
+     - If image:
+       • Upload directly
      - Get public URL
      - Mark as uploaded
   3. Update scan (status: 'uploaded')
@@ -97,12 +108,41 @@ handleUploadAndProcess() {
 }
 ```
 
+### PDF Processing
+
+The application uses `pdfjs-dist` for client-side PDF processing:
+
+```typescript
+// src/lib/pdfUtils.ts
+async function convertPDFToImages(file: File): Promise<PDFPageImage[]> {
+  1. Load PDF.js library (lazy-loaded)
+  2. Parse PDF file
+  3. For each page:
+     - Render to canvas at 2x scale
+     - Convert canvas to PNG blob
+     - Create data URL for preview
+  4. Return array of page images
+}
+```
+
+**Benefits of client-side processing:**
+- No server resources needed for conversion
+- Faster processing (parallel with upload)
+- Better user feedback
+- Reduces Edge Function complexity
+
+**Bundle optimization:**
+- PDF.js is code-split (329KB separate chunk)
+- Only loaded when PDF is selected
+- Main bundle remains under 400KB
+
 ### 2. Edge Function Processing
 
 ```typescript
 processScan(scanId, imageUrls) {
+  // Note: imageUrls includes both original images and PDF pages
   1. Update scan (status: 'processing')
-  2. For each image:
+  2. For each image URL:
      - performOCR(imageUrl)
        • Send image to GPT-4 Vision
        • Extract all visible text
@@ -117,6 +157,8 @@ processScan(scanId, imageUrls) {
   4. Update scan with results (status: 'completed')
 }
 ```
+
+**Note**: The Edge Function treats all images identically, whether they came from uploaded photos or converted PDF pages. This simplifies the architecture and ensures consistent processing.
 
 ### 3. Preview and Confirmation
 
@@ -279,9 +321,23 @@ This allows full testing without API costs.
 
 ## Testing Checklist
 
+### Image Uploads
 - [ ] Upload single image
 - [ ] Upload multiple images (3)
 - [ ] Remove image before upload
+- [ ] Test with large images (>5MB)
+
+### PDF Uploads
+- [ ] Upload single-page PDF
+- [ ] Upload multi-page PDF (3+ pages)
+- [ ] Upload mixed (images + PDF)
+- [ ] Remove PDF before upload
+- [ ] Verify page count detection
+- [ ] Test with large PDF (>10 pages)
+- [ ] Test with corrupted PDF
+- [ ] Test with empty PDF
+
+### Processing
 - [ ] Process with OpenAI key
 - [ ] Process in mock mode
 - [ ] Edit extracted data
@@ -321,11 +377,13 @@ This allows full testing without API costs.
 - Automatic duplicate detection
 
 ### Long Term
-- Support for PDF uploads
+- ✅ Support for PDF uploads (COMPLETED)
 - Batch processing multiple courses
 - Historical scan comparison
 - AI-suggested corrections
 - Learning from user edits
+- OCR optimization for scanned PDFs
+- Table detection and extraction improvements
 
 ## Troubleshooting
 
@@ -335,36 +393,54 @@ This allows full testing without API costs.
 3. Check storage policies are set
 4. Test with smaller image
 
+### "Failed to read PDF"
+1. Ensure PDF is not password-protected
+2. Check PDF is not corrupted
+3. Try with a simpler PDF (fewer pages)
+4. Verify browser supports canvas API
+5. Check console for specific errors
+
+### "PDF conversion taking too long"
+1. Reduce PDF quality or size
+2. Split large PDFs into smaller files
+3. Convert to images manually before upload
+4. Check browser resources (memory)
+
 ### "Processing stuck"
 1. Check Edge Function logs
 2. Verify OpenAI API key is set
 3. Check OpenAI account has credits
 4. Try with single image
+5. For PDFs, check if all pages converted
 
 ### "Low confidence scores"
-1. Use clearer photos
-2. Ensure good lighting
-3. Try uploading fewer images
+1. Use clearer photos or high-quality PDFs
+2. Ensure good lighting (for photos)
+3. Try uploading fewer images/pages
 4. Crop to relevant areas
+5. Use native PDF when possible (better than scanned)
 
 ### "Wrong data extracted"
 1. Edit in preview before confirming
-2. Try different photos
+2. Try different photos or PDF pages
 3. Fall back to manual entry
 4. Report issue for improvement
 
 ## API Costs Reference
 
 OpenAI GPT-4 Vision Pricing:
-- Image input: ~$0.01 per image
-- Text parsing: ~$0.02 per image
-- Total per scan (3 images): ~$0.09
+- Image input: ~$0.01 per image/page
+- Text parsing: ~$0.02 per image/page
+- Total per scan (3 images or 3 PDF pages): ~$0.09
+- Total per 5-page PDF: ~$0.15
 
 Expected monthly costs:
-- 10 scans/month: $0.90
-- 50 scans/month: $4.50
-- 100 scans/month: $9.00
-- 500 scans/month: $45.00
+- 10 scans/month (avg 3 pages): $0.90
+- 50 scans/month (avg 3 pages): $4.50
+- 100 scans/month (avg 3 pages): $9.00
+- 500 scans/month (avg 3 pages): $45.00
+
+**Note**: PDF pages are treated the same as images for API costs. Multi-page PDFs will cost more but provide better data extraction.
 
 ## Support
 
