@@ -37,6 +37,8 @@ Deno.serve(async (req: Request) => {
     return new Response(null, { status: 200, headers: corsHeaders });
   }
 
+  let scanId: string | undefined;
+
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -63,7 +65,8 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const { scanId, imageUrls }: ScanRequest = await req.json();
+    const { scanId: requestScanId, imageUrls }: ScanRequest = await req.json();
+    scanId = requestScanId;
 
     if (!scanId || !imageUrls || imageUrls.length === 0) {
       return new Response(
@@ -121,7 +124,7 @@ Deno.serve(async (req: Request) => {
 
     const merged = mergeParsedData(parsedParts);
 
-    await supabase
+    const { error: updateError } = await supabase
       .from('scans')
       .update({
         parsed_parts: parsedParts,
@@ -130,6 +133,11 @@ Deno.serve(async (req: Request) => {
         updated_at: new Date().toISOString(),
       })
       .eq('id', scanId);
+
+    if (updateError) {
+      console.error('Error updating scan:', updateError);
+      throw new Error(`Failed to save scan results: ${updateError.message}`);
+    }
 
     return new Response(
       JSON.stringify({
@@ -144,6 +152,25 @@ Deno.serve(async (req: Request) => {
     );
   } catch (error) {
     console.error('Error in processScan:', error);
+
+    if (scanId) {
+      try {
+        const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+        const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+        const supabase = createClient(supabaseUrl, supabaseKey);
+        
+        await supabase
+          .from('scans')
+          .update({
+            status: 'failed',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', scanId);
+      } catch (updateErr) {
+        console.error('Failed to update scan status to failed:', updateErr);
+      }
+    }
+
     return new Response(
       JSON.stringify({ error: error.message }),
       {

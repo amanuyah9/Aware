@@ -4,17 +4,20 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface Category {
+  id?: string;
   name: string;
   weight: number;
+  dropLowest?: number;
   confidence?: number;
 }
 
 interface Assignment {
-  name: string;
-  score: number;
-  total: number;
+  title: string;
+  earnedPoints: number;
+  totalPoints: number;
   category?: string;
   confidence?: number;
+  date?: string;
 }
 
 interface ScanData {
@@ -60,7 +63,7 @@ export function ScanPreview({ scanId, onConfirm }: ScanPreviewProps) {
         .from('scans')
         .select('*')
         .eq('user_id', user.id)
-        .eq('status', 'complete')
+        .eq('status', 'completed')
         .order('created_at', { ascending: false });
 
       if (scanId) {
@@ -76,7 +79,11 @@ export function ScanPreview({ scanId, onConfirm }: ScanPreviewProps) {
       }
 
       if (!data) {
-        setError('No completed scans found');
+        if (scanId) {
+          setError('Scan not found or still processing. Please wait a moment and refresh the page.');
+        } else {
+          setError('No completed scans found. Upload some images to get started!');
+        }
         setLoading(false);
         return;
       }
@@ -321,23 +328,23 @@ export function ScanPreview({ scanId, onConfirm }: ScanPreviewProps) {
                 <div className="grid grid-cols-12 gap-3 items-center">
                   <input
                     type="text"
-                    value={assignment.name}
-                    onChange={(e) => handleAssignmentEdit(index, 'name', e.target.value)}
+                    value={assignment.title}
+                    onChange={(e) => handleAssignmentEdit(index, 'title', e.target.value)}
                     className="col-span-5 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                     placeholder="Assignment name"
                   />
                   <input
                     type="number"
-                    value={assignment.score}
-                    onChange={(e) => handleAssignmentEdit(index, 'score', Number(e.target.value))}
+                    value={assignment.earnedPoints}
+                    onChange={(e) => handleAssignmentEdit(index, 'earnedPoints', Number(e.target.value))}
                     className="col-span-2 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                     placeholder="Score"
                   />
                   <span className="col-span-1 text-center text-gray-600">/</span>
                   <input
                     type="number"
-                    value={assignment.total}
-                    onChange={(e) => handleAssignmentEdit(index, 'total', Number(e.target.value))}
+                    value={assignment.totalPoints}
+                    onChange={(e) => handleAssignmentEdit(index, 'totalPoints', Number(e.target.value))}
                     className="col-span-2 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                     placeholder="Total"
                   />

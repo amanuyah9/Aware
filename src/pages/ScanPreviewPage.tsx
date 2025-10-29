@@ -9,12 +9,13 @@ interface ScanData {
   teacher?: string;
   term?: string;
   gradingModel?: 'weighted' | 'points';
-  categories?: Array<{ name: string; weight: number; confidence?: number }>;
+  categories?: Array<{ id?: string; name: string; weight: number; dropLowest?: number; confidence?: number }>;
   assignments?: Array<{
-    name: string;
-    score: number;
-    total: number;
+    title: string;
+    earnedPoints: number;
+    totalPoints: number;
     category?: string;
+    date?: string;
     confidence?: number;
   }>;
 }
@@ -70,14 +71,15 @@ export function ScanPreviewPage() {
         const assignmentsData = scanData.assignments.map((assignment) => ({
           course_id: course.id,
           user_id: user.id,
-          title: assignment.name,
+          title: assignment.title,
           category_id:
             assignment.category ||
+            (scanData.categories && scanData.categories[0]?.id) ||
             (scanData.categories && scanData.categories[0]?.name.toLowerCase().replace(/\s+/g, '_')) ||
             'general',
-          date: new Date().toISOString().split('T')[0],
-          earned_points: assignment.score,
-          total_points: assignment.total,
+          date: assignment.date || new Date().toISOString().split('T')[0],
+          earned_points: assignment.earnedPoints,
+          total_points: assignment.totalPoints,
           extra_credit: false,
           is_hypothetical: false,
           status: 'graded',
