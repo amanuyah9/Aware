@@ -1,44 +1,83 @@
-import { useState, FormEvent } from 'react';
+import { useState, useEffect, FormEvent } from 'react';
 import { X } from 'lucide-react';
 import { Category } from '../../lib/gradeCalculator';
 
-interface AddAssignmentModalProps {
-  categories: Category[];
-  onClose: () => void;
-  onAdd: (data: any) => void;
+interface Assignment {
+  id: string;
+  title: string;
+  category_id: string;
+  date: string;
+  earned_points: number;
+  total_points: number;
+  extra_credit: boolean;
+  status: 'graded' | 'pending' | 'missing';
+  is_hypothetical: boolean;
 }
 
-export function AddAssignmentModal({ categories, onClose, onAdd }: AddAssignmentModalProps) {
-  const [title, setTitle] = useState('');
-  const [categoryId, setCategoryId] = useState(categories[0]?.id || '');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [earnedPoints, setEarnedPoints] = useState('');
-  const [totalPoints, setTotalPoints] = useState('');
-  const [extraCredit, setExtraCredit] = useState(false);
-  const [isHypothetical, setIsHypothetical] = useState(false);
-  const [status, setStatus] = useState<'graded' | 'pending' | 'missing'>('graded');
+interface EditAssignmentModalProps {
+  assignment: Assignment;
+  categories: Category[];
+  onClose: () => void;
+  onUpdate: (assignmentId: string, data: any) => void;
+}
 
-  const handleSubmit = (e: FormEvent) => {
+export function EditAssignmentModal({
+  assignment,
+  categories,
+  onClose,
+  onUpdate,
+}: EditAssignmentModalProps) {
+  const [title, setTitle] = useState(assignment.title);
+  const [categoryId, setCategoryId] = useState(assignment.category_id);
+  const [date, setDate] = useState(assignment.date);
+  const [earnedPoints, setEarnedPoints] = useState(assignment.earned_points.toString());
+  const [totalPoints, setTotalPoints] = useState(assignment.total_points.toString());
+  const [extraCredit, setExtraCredit] = useState(assignment.extra_credit);
+  const [status, setStatus] = useState<'graded' | 'pending' | 'missing'>(assignment.status);
+  const [isHypothetical, setIsHypothetical] = useState(assignment.is_hypothetical);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    setTitle(assignment.title);
+    setCategoryId(assignment.category_id);
+    setDate(assignment.date);
+    setEarnedPoints(assignment.earned_points.toString());
+    setTotalPoints(assignment.total_points.toString());
+    setExtraCredit(assignment.extra_credit);
+    setStatus(assignment.status);
+    setIsHypothetical(assignment.is_hypothetical);
+  }, [assignment]);
+
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    onAdd({
-      title,
-      category_id: categoryId,
-      date,
-      earned_points: parseFloat(earnedPoints) || 0,
-      total_points: parseFloat(totalPoints) || 0,
-      extra_credit: extraCredit,
-      is_hypothetical: isHypothetical,
-      status,
-    });
+    setIsSubmitting(true);
+    try {
+      await onUpdate(assignment.id, {
+        title,
+        category_id: categoryId,
+        date,
+        earned_points: parseFloat(earnedPoints) || 0,
+        total_points: parseFloat(totalPoints) || 0,
+        extra_credit: extraCredit,
+        status,
+        is_hypothetical: isHypothetical,
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-2xl shadow-xl max-w-md w-full">
         <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-          <h2 className="text-xl font-bold text-gray-900">Add Assignment</h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition">
+          <h2 className="text-xl font-bold text-gray-900">Edit Assignment</h2>
+          <button
+            onClick={onClose}
+            disabled={isSubmitting}
+            className="p-2 hover:bg-gray-100 rounded-lg transition"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -171,15 +210,17 @@ export function AddAssignmentModal({ categories, onClose, onAdd }: AddAssignment
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-6 py-2.5 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition"
+              disabled={isSubmitting}
+              className="flex-1 px-6 py-2.5 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="flex-1 px-6 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition"
+              disabled={isSubmitting}
+              className="flex-1 px-6 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Add Assignment
+              {isSubmitting ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
         </form>

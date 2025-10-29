@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Plus } from 'lucide-react';
+import { X, Plus, Save } from 'lucide-react';
 import { Assignment, Category, calculateWhatIf } from '../../lib/gradeCalculator';
 
 interface WhatIfModalProps {
@@ -7,6 +7,12 @@ interface WhatIfModalProps {
   categories: Category[];
   gradingModel: 'weighted' | 'points';
   onClose: () => void;
+  onSaveHypothetical?: (assignment: {
+    title: string;
+    category_id: string;
+    earned_points: number;
+    total_points: number;
+  }) => void;
 }
 
 interface HypotheticalAssignment {
@@ -20,10 +26,12 @@ export function WhatIfModal({
   categories,
   gradingModel,
   onClose,
+  onSaveHypothetical,
 }: WhatIfModalProps) {
   const [hypotheticals, setHypotheticals] = useState<HypotheticalAssignment[]>([
     { category_id: categories[0]?.id || '', earned_points: 0, total_points: 0 },
   ]);
+  const [savingIndex, setSavingIndex] = useState<number | null>(null);
 
   const result = calculateWhatIf(
     currentAssignments,
@@ -48,6 +56,25 @@ export function WhatIfModal({
 
   const removeHypothetical = (index: number) => {
     setHypotheticals(hypotheticals.filter((_, i) => i !== index));
+  };
+
+  const saveAsHypothetical = async (index: number) => {
+    if (!onSaveHypothetical) return;
+
+    const hyp = hypotheticals[index];
+    const category = categories.find((c) => c.id === hyp.category_id);
+
+    setSavingIndex(index);
+    try {
+      await onSaveHypothetical({
+        title: `What-If ${category?.name || 'Assignment'} ${index + 1}`,
+        category_id: hyp.category_id,
+        earned_points: hyp.earned_points,
+        total_points: hyp.total_points,
+      });
+    } finally {
+      setSavingIndex(null);
+    }
   };
 
   return (
@@ -128,6 +155,21 @@ export function WhatIfModal({
                     placeholder="Total"
                     className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                   />
+
+                  {onSaveHypothetical && (
+                    <button
+                      onClick={() => saveAsHypothetical(index)}
+                      disabled={savingIndex === index}
+                      className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition disabled:opacity-50"
+                      title="Save as hypothetical assignment"
+                    >
+                      {savingIndex === index ? (
+                        <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <Save className="w-4 h-4" />
+                      )}
+                    </button>
+                  )}
 
                   {hypotheticals.length > 1 && (
                     <button

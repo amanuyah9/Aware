@@ -1,13 +1,14 @@
-import { Trash2 } from 'lucide-react';
+import { Trash2, Edit2 } from 'lucide-react';
 import { Assignment, Category } from '../../lib/gradeCalculator';
 
 interface AssignmentListProps {
   assignments: Assignment[];
   categories: Category[];
+  onEdit: (assignment: Assignment) => void;
   onDelete: (id: string) => void;
 }
 
-export function AssignmentList({ assignments, categories, onDelete }: AssignmentListProps) {
+export function AssignmentList({ assignments, categories, onEdit, onDelete }: AssignmentListProps) {
   if (assignments.length === 0) {
     return (
       <div className="text-center py-12">
@@ -52,11 +53,18 @@ export function AssignmentList({ assignments, categories, onDelete }: Assignment
               <tr key={assignment.id} className="border-b border-gray-100 hover:bg-gray-50">
                 <td className="py-3 px-4">
                   <div className="font-medium text-gray-900">{assignment.title}</div>
-                  {assignment.extra_credit && (
-                    <span className="inline-block mt-1 text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">
-                      Extra Credit
-                    </span>
-                  )}
+                  <div className="flex gap-1 mt-1">
+                    {assignment.extra_credit && (
+                      <span className="inline-block text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">
+                        Extra Credit
+                      </span>
+                    )}
+                    {assignment.is_hypothetical && (
+                      <span className="inline-block text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
+                        Hypothetical
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td className="py-3 px-4 text-sm text-gray-600">
                   {getCategoryName(assignment.category_id)}
@@ -71,12 +79,22 @@ export function AssignmentList({ assignments, categories, onDelete }: Assignment
                   {percentage.toFixed(1)}%
                 </td>
                 <td className="py-3 px-4 text-right">
-                  <button
-                    onClick={() => onDelete(assignment.id)}
-                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center justify-end gap-1">
+                    <button
+                      onClick={() => onEdit(assignment)}
+                      className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                      title="Edit assignment"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => onDelete(assignment.id)}
+                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                      title="Delete assignment"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </td>
               </tr>
             );

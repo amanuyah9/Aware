@@ -13,6 +13,7 @@ export interface Assignment {
   total_points: number;
   extra_credit: boolean;
   status: string;
+  is_hypothetical?: boolean;
 }
 
 export interface CategoryResult {
@@ -53,7 +54,7 @@ export function calculateCategoryGrade(
   category: Category
 ): { earned: number; possible: number; percentage: number } {
   const gradedAssignments = assignments.filter(
-    (a) => a.category_id === category.id && a.status === 'graded'
+    (a) => a.category_id === category.id && a.status === 'graded' && !a.is_hypothetical
   );
 
   if (gradedAssignments.length === 0) {

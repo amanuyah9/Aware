@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { calculateCourseGrade, Assignment, Category } from '../lib/gradeCalculator';
 import { AddAssignmentModal } from '../components/Course/AddAssignmentModal';
+import { EditAssignmentModal } from '../components/Course/EditAssignmentModal';
 import { AssignmentList } from '../components/Course/AssignmentList';
 import { WhatIfModal } from '../components/Course/WhatIfModal';
 
@@ -21,6 +22,8 @@ export function CoursePage({ courseId }: { courseId: string }) {
   const [course, setCourse] = useState<Course | null>(null);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
   const [showWhatIfModal, setShowWhatIfModal] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -89,6 +92,41 @@ export function CoursePage({ courseId }: { courseId: string }) {
     }
   };
 
+  const handleEditAssignment = (assignment: Assignment) => {
+    setSelectedAssignment(assignment);
+    setShowEditModal(true);
+  };
+
+  const handleUpdateAssignment = async (assignmentId: string, data: any) => {
+    if (!user) {
+      alert('You must be logged in to update assignments');
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('assignments')
+        .update(data)
+        .eq('id', assignmentId)
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error('Error updating assignment:', error);
+        alert(`Failed to update assignment: ${error.message}`);
+        return;
+      }
+
+      setAssignments(
+        assignments.map((a) => (a.id === assignmentId ? { ...a, ...data } : a))
+      );
+      setShowEditModal(false);
+      setSelectedAssignment(null);
+    } catch (err) {
+      console.error('Unexpected error updating assignment:', err);
+      alert('An unexpected error occurred. Please try again.');
+    }
+  };
+
   const handleDeleteAssignment = async (assignmentId: string) => {
     if (!user) {
       alert('You must be logged in to delete assignments');
@@ -111,6 +149,49 @@ export function CoursePage({ courseId }: { courseId: string }) {
       setAssignments(assignments.filter((a) => a.id !== assignmentId));
     } catch (err) {
       console.error('Unexpected error deleting assignment:', err);
+      alert('An unexpected error occurred. Please try again.');
+    }
+  };
+
+  const handleSaveHypothetical = async (assignmentData: {
+    title: string;
+    category_id: string;
+    earned_points: number;
+    total_points: number;
+  }) => {
+    if (!user || !course) {
+      alert('You must be logged in to save hypothetical assignments');
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('assignments')
+        .insert([
+          {
+            ...assignmentData,
+            course_id: courseId,
+            user_id: user.id,
+            date: new Date().toISOString().split('T')[0],
+            extra_credit: false,
+            is_hypothetical: true,
+            status: 'graded',
+          },
+        ])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error saving hypothetical assignment:', error);
+        alert(`Failed to save hypothetical assignment: ${error.message}`);
+        return;
+      }
+
+      if (data) {
+        setAssignments([data, ...assignments]);
+      }
+    } catch (err) {
+      console.error('Unexpected error saving hypothetical assignment:', err);
       alert('An unexpected error occurred. Please try again.');
     }
   };
@@ -206,6 +287,7 @@ export function CoursePage({ courseId }: { courseId: string }) {
           <AssignmentList
             assignments={assignments}
             categories={categories}
+            onEdit={handleEditAssignment}
             onDelete={handleDeleteAssignment}
           />
         </div>
@@ -219,12 +301,25 @@ export function CoursePage({ courseId }: { courseId: string }) {
         />
       )}
 
+      {showEditModal && selectedAssignment && (
+        <EditAssignmentModal
+          assignment={selectedAssignment}
+          categories={categories}
+          onClose={() => {
+            setShowEditModal(false);
+            setSelectedAssignment(null);
+          }}
+          onUpdate={handleUpdateAssignment}
+        />
+      )}
+
       {showWhatIfModal && (
         <WhatIfModal
           currentAssignments={assignments}
           categories={categories}
           gradingModel={course.grading_model as 'weighted' | 'points'}
           onClose={() => setShowWhatIfModal(false)}
+          onSaveHypothetical={handleSaveHypothetical}
         />
       )}
     </div>
