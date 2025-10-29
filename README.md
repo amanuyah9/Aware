@@ -20,12 +20,16 @@ A complete, production-ready web application for students to track grades, creat
 - **History**: View all activity, scans, and changes
 - **Settings**: Manage profile and preferences
 
-### 🤖 AI-Powered Features (Setup Required)
+### 🤖 AI-Powered Features (Mock Mode Available)
 
 - **Multi-Photo Scanning**: Upload syllabus + gradebook images for automatic course creation
+- **Scan Preview & Confirmation**: Review extracted data with confidence scores before creating courses
+- **Editable Fields**: Manually correct any low-confidence extractions (< 80%)
 - **OCR Processing**: Extract grading rules and assignments using OpenAI GPT-4 Vision
+- **Automatic Course Creation**: Generate courses with categories and assignments from scan data
 - **AI Insights**: Get personalized predictions and study suggestions
 - **Conflict Detection**: Smart merging with confidence scores
+- **Mock Mode**: Test the full workflow with sample data without API keys
 
 ### 💳 Premium Features (Stripe Integration)
 
@@ -86,7 +90,8 @@ src/
 ├── components/
 │   ├── Auth/              # Login, SignUp, Password Reset
 │   ├── Course/            # AddAssignment, WhatIf, AssignmentList
-│   └── Dashboard/         # CourseCard, CreateCourse
+│   ├── Dashboard/         # CourseCard, CreateCourse
+│   └── Scan/              # ScanPreview (NEW)
 ├── contexts/
 │   └── AuthContext.tsx    # Authentication state
 ├── lib/
@@ -96,7 +101,8 @@ src/
 ├── pages/
 │   ├── Dashboard.tsx      # Main dashboard
 │   ├── CoursePage.tsx     # Individual course view
-│   ├── ScanPage.tsx       # AI scanning interface
+│   ├── ScanPage.tsx       # AI scanning upload interface
+│   ├── ScanPreviewPage.tsx # Scan review & confirmation (NEW)
 │   ├── InsightsPage.tsx   # AI insights display
 │   ├── HistoryPage.tsx    # Activity history
 │   ├── SettingsPage.tsx   # User settings
@@ -110,9 +116,27 @@ supabase/functions/
 └── stripe-webhook/        # Stripe webhook handler
 ```
 
-## 🔧 Enable Advanced Features
+## 🔧 Using AI Scanning
 
-### AI Scanning & Insights
+### Quick Start (Mock Mode)
+
+The AI scanning feature works out of the box in **mock mode** for testing:
+
+1. Navigate to **Scan** from the dashboard
+2. Click **Choose Files** to upload images (mock data will be generated)
+3. Review the extracted course information on the preview page
+4. Edit any fields with low confidence (highlighted in yellow)
+5. Click **Confirm & Create Course** to automatically generate your course
+
+**Mock mode** generates sample scan data including:
+- Course title, teacher, and term
+- Weighted categories with confidence scores
+- Sample assignments with scores
+- Fields marked with <80% confidence for testing the editing flow
+
+### Enable Production AI Scanning
+
+To use real OpenAI-powered OCR and extraction:
 
 1. Get an OpenAI API key from https://platform.openai.com
 2. Install Supabase CLI: `npm install -g supabase`

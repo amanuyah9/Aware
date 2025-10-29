@@ -6,6 +6,7 @@ import { ForgotPasswordForm } from './components/Auth/ForgotPasswordForm';
 import { Dashboard } from './pages/Dashboard';
 import { CoursePage } from './pages/CoursePage';
 import { ScanPage } from './pages/ScanPage';
+import { ScanPreviewPage } from './pages/ScanPreviewPage';
 import { InsightsPage } from './pages/InsightsPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { SettingsPage } from './pages/SettingsPage';
@@ -78,6 +79,10 @@ function AppContent() {
 
   if (route === '#/scan') {
     return <ScanPage />;
+  }
+
+  if (route.startsWith('#/scan-preview')) {
+    return <ScanPreviewPage />;
   }
 
   if (route === '#/history') {
