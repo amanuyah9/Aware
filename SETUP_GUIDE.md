@@ -147,20 +147,33 @@ The AI scanning feature is now implemented! Follow these steps to enable it.
 
 ### Step 2: Set up Storage Policies
 
-Run this SQL in the SQL Editor:
+The storage policies are already configured! But if you need to verify or recreate them, run this SQL:
 
 ```sql
--- Allow authenticated users to upload images
-CREATE POLICY "Users can upload scan images"
+-- Allow authenticated users to upload images (to their own folder)
+CREATE POLICY "storage_insert_own_scan_images"
 ON storage.objects FOR INSERT
 TO authenticated
-WITH CHECK (bucket_id = 'scan-images' AND auth.uid()::text = (storage.foldername(name))[1]);
+WITH CHECK (bucket_id = 'scan-images' AND (storage.foldername(name))[1] = auth.uid()::text);
 
 -- Allow authenticated users to read their own images
-CREATE POLICY "Users can read own scan images"
+CREATE POLICY "storage_select_own_scan_images"
 ON storage.objects FOR SELECT
 TO authenticated
-USING (bucket_id = 'scan-images' AND auth.uid()::text = (storage.foldername(name))[1]);
+USING (bucket_id = 'scan-images' AND (storage.foldername(name))[1] = auth.uid()::text);
+
+-- Allow authenticated users to update their own images
+CREATE POLICY "storage_update_own_scan_images"
+ON storage.objects FOR UPDATE
+TO authenticated
+USING (bucket_id = 'scan-images' AND (storage.foldername(name))[1] = auth.uid()::text)
+WITH CHECK (bucket_id = 'scan-images' AND (storage.foldername(name))[1] = auth.uid()::text);
+
+-- Allow authenticated users to delete their own images
+CREATE POLICY "storage_delete_own_scan_images"
+ON storage.objects FOR DELETE
+TO authenticated
+USING (bucket_id = 'scan-images' AND (storage.foldername(name))[1] = auth.uid()::text);
 
 -- Allow public read access (needed for OpenAI to access images)
 CREATE POLICY "Public read access for scan images"
@@ -168,6 +181,8 @@ ON storage.objects FOR SELECT
 TO public
 USING (bucket_id = 'scan-images');
 ```
+
+**Important**: Files must be uploaded with paths starting with the user's ID (e.g., `user-id/scan-id/file.jpg`). This is handled automatically by the app.
 
 ### Step 3: Get OpenAI API Key (Optional)
 

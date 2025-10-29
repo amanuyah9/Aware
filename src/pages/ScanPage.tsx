@@ -77,7 +77,7 @@ export function ScanPage() {
 
         const file = files[i].file;
         const fileExt = file.name.split('.').pop();
-        const fileName = `${scan.id}/${Date.now()}-${i}.${fileExt}`;
+        const fileName = `${user.id}/${scan.id}/${Date.now()}-${i}.${fileExt}`;
 
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('scan-images')
